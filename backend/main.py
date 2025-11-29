@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import httpx
+from transformers import pipeline, set_seed
 import os
 from dotenv import load_dotenv
 
@@ -12,14 +12,17 @@ app = FastAPI()
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origin
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configuration
-LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL", "https://your-google-cloud-llm-service-url.com/generate")
+# Initialize the model
+# We use distilgpt2 for faster local inference on CPU, or gpt2
+print("Loading model...")
+generator = pipeline('text-generation', model='gpt2')
+print("Model loaded!")
 
 class GenerateRequest(BaseModel):
     prompt: str
@@ -27,6 +30,7 @@ class GenerateRequest(BaseModel):
     temperature: float = 0.7
     top_k: int = 50
     top_p: float = 0.9
+    max_new_tokens: int = 150
 
 class GenerateResponse(BaseModel):
     result: str
@@ -34,52 +38,51 @@ class GenerateResponse(BaseModel):
 @app.post("/generate", response_model=GenerateResponse)
 async def generate_text(request: GenerateRequest):
     """
-    Forward the generation request to the external LLM service.
+    Generate text locally using Hugging Face Transformers.
     """
     try:
-        # Prepare the payload for the LLM service
-        # Adjust the payload structure based on what your Colab/Cloud service expects
-        payload = {
-            "prompt": request.prompt,
-            "max_length": 500,  # You might want to make this configurable too
-            "temperature": request.temperature,
-            "top_k": request.top_k,
-            "top_p": request.top_p,
-            "do_sample": True
-        }
-        
-        # Add specific instructions based on type
+        # Construct a prompt based on the type
+        input_prompt = request.prompt
         if request.type == "poem":
-            payload["prompt"] = f"Write a poem about: {request.prompt}"
-        
-        async with httpx.AsyncClient() as client:
-            # This assumes the LLM service accepts a POST request with JSON
-            # You might need to adjust headers or authentication if needed
-            response = await client.post(
-                LLM_SERVICE_URL, 
-                json=payload, 
-                timeout=60.0  # LLMs can take time
-            )
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=f"LLM Service Error: {response.text}")
-            
-            data = response.json()
-            
-            # Adjust this based on the actual response structure from your LLM service
-            # For example, if it returns {"generated_text": "..."}
-            generated_text = data.get("generated_text", "") or data.get("result", "") or str(data)
-            
-            return GenerateResponse(result=generated_text)
+            input_prompt = f"Write a poem about {request.prompt}:\n"
+        elif request.type == "story":
+            input_prompt = f"Story about {request.prompt}:\n"
 
-    except httpx.RequestError as exc:
-        raise HTTPException(status_code=503, detail=f"Error communicating with LLM service: {exc}")
+        # Generate text
+        # set_seed(42) # Optional: for reproducibility
+        
+        output = generator(
+            input_prompt, 
+            max_length=len(input_prompt) + request.max_new_tokens, 
+            num_return_sequences=1,
+            temperature=request.temperature,
+            top_k=request.top_k,
+            top_p=request.top_p,
+            do_sample=True,
+            truncation=True
+        )
+        
+        generated_text = output[0]['generated_text']
+        
+        # Clean up the prompt from the result if desired, or keep it
+        # For now we return the whole thing or just the new part. 
+        # Usually users like to see the continuation.
+        
+        # If we want to strip the prompt prefix we added:
+        if request.type == "poem" and generated_text.startswith(input_prompt):
+            generated_text = generated_text[len(input_prompt):].strip()
+        elif request.type == "story" and generated_text.startswith(input_prompt):
+             generated_text = generated_text[len(input_prompt):].strip()
+
+        return GenerateResponse(result=generated_text)
+
     except Exception as e:
+        print(f"Error generating text: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "model": "gpt2"}
 
 if __name__ == "__main__":
     import uvicorn

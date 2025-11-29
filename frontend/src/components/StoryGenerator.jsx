@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, BookOpen, Feather, Settings, Send, Loader2, Copy, Check } from 'lucide-react';
+import { Sparkles, BookOpen, Feather, Settings, Send, Loader2, Copy, Check, Github } from 'lucide-react';
 import './StoryGenerator.css';
 
 const StoryGenerator = () => {
     const [prompt, setPrompt] = useState('');
     const [type, setType] = useState('story');
-    const [temperature, setTemperature] = useState(0.7);
+    const [temperature, setTemperature] = useState(0.8);
     const [topK, setTopK] = useState(50);
-    const [topP, setTopP] = useState(0.9);
+    const [topP, setTopP] = useState(0.95);
     const [isGenerating, setIsGenerating] = useState(false);
     const [result, setResult] = useState('');
     const [showSettings, setShowSettings] = useState(false);
@@ -20,30 +21,26 @@ const StoryGenerator = () => {
         setIsGenerating(true);
         setResult('');
 
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
         try {
-            const response = await fetch('http://localhost:8000/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    prompt,
-                    type,
-                    temperature,
-                    top_k: topK,
-                    top_p: topP
-                }),
+            const response = await axios.post(`${API_URL}/generate`, {
+                prompt: prompt,
+                type: type,
+                temperature: temperature,
+                top_k: topK,
+                top_p: topP,
+                max_new_tokens: 150
             });
 
-            if (!response.ok) {
-                throw new Error(`Error: ${response.statusText}`);
+            if (response.data && response.data.result) {
+                setResult(response.data.result);
+            } else {
+                throw new Error('Invalid response format');
             }
-
-            const data = await response.json();
-            setResult(data.result);
         } catch (error) {
             console.error('Generation failed:', error);
-            setResult(`Error: Failed to generate content. Please ensure the backend is running.\n\nDetails: ${error.message}`);
+            setResult(`Error: Failed to generate content.\n\nDetails: ${error.message}`);
         } finally {
             setIsGenerating(false);
         }
@@ -53,6 +50,13 @@ const StoryGenerator = () => {
         navigator.clipboard.writeText(result);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const openGithubProfiles = () => {
+        window.open('https://github.com/aay-zee', '_blank');
+        setTimeout(() => {
+            window.open('https://github.com/1-WaleedAhmad', '_blank');
+        }, 100);
     };
 
     return (
@@ -222,6 +226,18 @@ const StoryGenerator = () => {
                     </div>
                 </motion.div>
             </div>
+
+            <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="github-float-btn"
+                onClick={openGithubProfiles}
+                title="View Contributors"
+            >
+                <Github size={24} />
+            </motion.button>
         </div>
     );
 };
