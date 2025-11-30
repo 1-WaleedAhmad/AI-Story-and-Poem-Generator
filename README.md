@@ -29,14 +29,8 @@ AI‑Story‑and‑Poem‑Generator/   (git repo root)
 │   ├─ main.py
 │   ├─ requirements.txt
 │   └─ .env                     # LLM service URL (edit this)
-├─ frontend/                    # Vite + React app
-│   ├─ src/
-│   │   ├─ App.jsx
-│   │   ├─ components/StoryGenerator.jsx
-│   │   └─ components/StoryGenerator.css
-│   ├─ index.css
-│   ├─ package.json
-│   └─ ...
+├─ frontend/                    # (moved to separate repo)
+│   └─ (see https://github.com/1-WaleedAhmad/AI-Story-and-Poem-Generator-FRONTEND)
 ├─ .gitignore
 └─ README.md                    # <-- this file
 ```
