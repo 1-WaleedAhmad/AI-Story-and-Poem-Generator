@@ -21,7 +21,7 @@ app.add_middleware(
 # Initialize the model
 # We use distilgpt2 for faster local inference on CPU, or gpt2
 print("Loading model...")
-generator = pipeline('text-generation', model='gpt2')
+generator = pipeline('text-generation', model='WwaleedAhmad/ai-story-poem-gpt2-finetuned')
 print("Model loaded!")
 
 class GenerateRequest(BaseModel):
